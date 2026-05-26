@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confetti Keyboard</title>
+  <style>
+    /* ── CONFIG ────────────────────────────────────────────────── */
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131c;
+      --border: #2a2a40;
+      --text: #f0f0ff;
+      --muted: #6666aa;
+      --glow: #7c5cfc;
+    }
+
+    /* ── RESET ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── BODY ──────────────────────────────────────────────────── */
+    body {
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      user-select: none;
+    }
+
+    /* subtle grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .35;
+      pointer-events: none;
+    }
+
+    /* ── CANVAS ────────────────────────────────────────────────── */
+    #canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ── CONTENT ───────────────────────────────────────────────── */
+    .card {
+      position: relative;
+      z-index: 5;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: clamp(2rem, 5vw, 4rem) clamp(2rem, 8vw, 6rem);
+      text-align: center;
+      max-width: 520px;
+      width: 92vw;
+      box-shadow: 0 0 60px rgba(124,92,252,.12), 0 24px 64px rgba(0,0,0,.6);
+    }
+
+    .eyebrow {
+      font-size: .65rem;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 400;
+      letter-spacing: -.02em;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #fff 40%, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: .82rem;
+      color: var(--muted);
+      letter-spacing: .06em;
+      margin-bottom: 2.5rem;
+    }
+
+    /* ── KEY DISPLAY ───────────────────────────────────────────── */
+    .key-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      min-height: 80px;
+    }
+
+    .key-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 72px;
+      height: 72px;
+      padding: 0 1rem;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #1e1e30, #111118);
+      border: 2px solid var(--border);
+      border-bottom: 4px solid #07070e;
+      box-shadow: 0 4px 20px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: var(--text);
+      transition: transform .08s, box-shadow .08s, border-color .2s;
+      position: relative;
+    }
+
+    .key-badge.pressed {
+      transform: translateY(3px) scale(.95);
+      box-shadow: 0 1px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+      border-bottom-width: 2px;
+      border-color: var(--glow);
+    }
+
+    .key-name {
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      font-family: 'Courier New', monospace;
+    }
+
+    .idle-hint {
+      font-size: .8rem;
+      color: var(--muted);
+      letter-spacing: .08em;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: .5; }
+      50% { opacity: 1; }
+    }
+
+    /* ── BURST COUNTER ─────────────────────────────────────────── */
+    .counter {
+      font-size: .7rem;
+      letter-spacing: .16em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .counter span {
+      color: #a78bfa;
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: inline-block;
+      transition: transform .15s cubic-bezier(.34,1.56,.64,1);
+    }
+
+    .counter span.bump {
+      transform: scale(1.5);
+    }
+
+    /* ── TAP BUTTON (touch) ────────────────────────────────────── */
+    .tap-btn {
+      display: none;
+      margin-top: 2rem;
+      padding: .75rem 2rem;
+      border-radius: 50px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-family: 'Courier New', monospace;
+      font-size: .8rem;
+      letter-spacing: .1em;
+      cursor: pointer;
+      transition: color .2s, border-color .2s;
+    }
+
+    .tap-btn:hover, .tap-btn:focus-visible {
+      color: var(--text);
+      border-color: var(--glow);
+      outline: none;
+    }
+
+    @media (hover: none) {
+      .tap-btn { display: inline-block; }
+    }
+
+    /* ── ACCESSIBLE FOCUS ──────────────────────────────────────── */
+    :focus-visible {
+      outline: 2px solid var(--glow);
+      outline-offset: 3px;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas" aria-hidden="true"></canvas>
+
+<main class="card" role="main">
+  <p class="eyebrow" aria-hidden="true">// interactive</p>
+  <h1>Confetti<br>Machine</h1>
+  <p class="subtitle">Press any key to celebrate</p>
+
+  <div class="key-display" aria-live="polite" aria-atomic="true" id="keyDisplay">
+    <span class="idle-hint" id="idleHint">waiting for input…</span>
+  </div>
+
+  <p class="counter">bursts fired &nbsp;<span id="count">0</span></p>
+
+  <button class="tap-btn" id="tapBtn" aria-label="Tap to launch confetti">
+    ✦ tap to launch
+  </button>
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   EDITABLE CONFIG — change anything here without touching the rest
+   ═══════════════════════════════════════════════════════════════ */
+const CONFIG = {
+  // Confetti colours (hex or rgba)
+  COLORS: [
+    '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff',
+    '#ff922b', '#cc5de8', '#f06595', '#20c997',
+    '#74c0fc', '#ffe066', '#ffffff'
+  ],
+
+  // How many particles per burst
+  PARTICLE_COUNT: 120,
+
+  // Gravity applied each frame (px / frame²)
+  GRAVITY: 0.38,
+
+  // How much horizontal drag (0–1; closer to 1 = floatier)
+  DRAG: 0.97,
+
+  // Initial upward velocity range [min, max]
+  VEL_Y: [-18, -8],
+
+  // Initial horizontal velocity range [min, max]
+  VEL_X: [-10, 10],
+
+  // Particle size range [min, max] in px
+  SIZE: [6, 14],
+
+  // How many frames a particle lives
+  LIFESPAN: 180,
+
+  // Confetti shapes: 'rect' | 'circle' | 'ribbon'
+  SHAPES: ['rect', 'circle', 'ribbon'],
+
+  // Show key label in the badge? (true/false)
+  SHOW_KEY_LABEL: true,
+};
+/* ═══════════════════════════════════════════════════════════════ */
+
+// ── DOM refs ──────────────────────────────────────────────────
+const canvas    = document.getElementById('canvas');
+const ctx       = canvas.getContext('2d');
+const keyDisplay= document.getElementById('keyDisplay');
+const idleHint  = document.getElementById('idleHint');
+const countEl   = document.getElementById('count');
+const tapBtn    = document.getElementById('tapBtn');
+
+// ── State ─────────────────────────────────────────────────────
+let particles   = [];
+let burstCount  = 0;
+let raf         = null;
+let lastKey     = null;
+let pressTimer  = null;
+
+// ── Resize canvas ─────────────────────────────────────────────
+function resize() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Particle factory ──────────────────────────────────────────
+function rand(a, b) { return Math.random() * (b - a) + a; }
+function pick(arr)   { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function spawnBurst(x, y) {
+  for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+    const size  = rand(...CONFIG.SIZE);
+    particles.push({
+      x, y,
+      vx: rand(...CONFIG.VEL_X),
+      vy: rand(...CONFIG.VEL_Y),
+      size,
+      color: pick(CONFIG.COLORS),
+      shape: pick(CONFIG.SHAPES),
+      angle: rand(0, Math.PI * 2),
+      spin:  rand(-0.3, 0.3),
+      life:  CONFIG.LIFESPAN + Math.floor(rand(-30, 30)),
+      age:   0,
+    });
+  }
+  if (!raf) loop();
+}
+
+// ── Render loop ───────────────────────────────────────────────
+function drawParticle(p) {
+  const alpha = Math.max(0, 1 - p.age / p.life);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle   = p.color;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.angle);
+
+  if (p.shape === 'circle') {
+    ctx.beginPath();
+    ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (p.shape === 'ribbon') {
+    ctx.fillRect(-p.size / 2, -p.size * 1.6, p.size * .4, p.size * 1.6);
+  } else {
+    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * rand(.5, 1.2));
+  }
+  ctx.restore();
+}
+
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.globalAlpha = 1;
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += CONFIG.GRAVITY;
+    p.vx *= CONFIG.DRAG;
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.angle += p.spin;
+    p.age++;
+    drawParticle(p);
+    if (p.age >= p.life) particles.splice(i, 1);
+  }
+
+  ctx.globalAlpha = 1;
+
+  if (particles.length > 0) {
+    raf = requestAnimationFrame(loop);
+  } else {
+    raf = null;
+  }
+}
+
+// ── Burst from screen centre (or element) ─────────────────────
+function launchFromCenter() {
+  spawnBurst(canvas.width / 2, canvas.height * .55);
+}
+
+function launchFromPoint(x, y) {
+  spawnBurst(x, y);
+}
+
+// ── Update key display ────────────────────────────────────────
+function prettyKey(e) {
+  const map = {
+    ' ': 'SPACE', 'ArrowUp': '↑', 'ArrowDown': '↓',
+    'ArrowLeft': '←', 'ArrowRight': '→',
+    'Enter': '↵', 'Backspace': '⌫', 'Escape': 'ESC',
+    'Tab': 'TAB', 'CapsLock': 'CAPS', 'Shift': '⇧',
+    'Control': 'CTRL', 'Alt': 'ALT', 'Meta': '⌘',
+  };
+  return map[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+}
+
+function showKey(label) {
+  if (!CONFIG.SHOW_KEY_LABEL) return;
+
+  keyDisplay.innerHTML = '';
+  const badge = document.createElement('span');
+  badge.className = 'key-badge pressed';
+  badge.textContent = label;
+  badge.setAttribute('aria-label', `Key pressed: ${label}`);
+  keyDisplay.appendChild(badge);
+
+  // Remove pressed class after short delay (visual bounce)
+  if (pressTimer) clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    badge.classList.remove('pressed');
+  }, 120);
+}
+
+// ── Counter bump ──────────────────────────────────────────────
+function bumpCount() {
+  burstCount++;
+  countEl.textContent = burstCount;
+  countEl.classList.remove('bump');
+  void countEl.offsetWidth; // reflow
+  countEl.classList.add('bump');
+  countEl.addEventListener('transitionend', () => countEl.classList.remove('bump'), { once: true });
+}
+
+// ── Keyboard handler ──────────────────────────────────────────
+window.addEventListener('keydown', (e) => {
+  // Avoid repeat-fire on held keys
+  if (e.repeat) return;
+
+  const label = prettyKey(e);
+  showKey(label);
+  launchFromCenter();
+  bumpCount();
+});
+
+// ── Touch / tap button ────────────────────────────────────────
+tapBtn.addEventListener('click', () => {
+  const r = tapBtn.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  const y = r.top  + r.height / 2;
+  showKey('✦');
+  launchFromPoint(x, y);
+  bumpCount();
+});
+
+// Tap anywhere on mobile (not just the button)
+canvas.addEventListener('click', (e) => {
+  showKey('✦');
+  launchFromPoint(e.clientX, e.clientY);
+  bumpCount();
+});
+
+// ── Initial idle state ────────────────────────────────────────
+// keep the idle hint until first interaction
+document.addEventListener('keydown', () => {
+  if (idleHint) idleHint.remove();
+}, { once: true });
+tapBtn.addEventListener('click', () => {
+  if (idleHint) idleHint.remove();
+}, { once: true });
+</script>
+</body>
+</html>
