@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #1a1a1c;
+    --surface2: #242427;
+    --border: #2e2e33;
+    --accent: #c8f135;
+    --accent-dim: #a8d01a;
+    --text: #f0efe8;
+    --muted: #7a7a82;
+    --radius: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 3rem 1.5rem 4rem;
+  }
+
+  header { text-align: center; margin-bottom: 3rem; }
+
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .tagline {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 0.75rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .input-group { margin-bottom: 1.5rem; }
+
+  label {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 0.85rem 1rem;
+    resize: vertical;
+    min-height: 90px;
+    outline: none;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 0.75rem 1rem;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  .select-wrapper { position: relative; }
+  .select-wrapper::after {
+    content: '▾';
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+    font-size: 12px;
+  }
+
+  .color-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .color-field {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .color-field:hover { border-color: var(--accent); }
+
+  .color-field input[type="color"] {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .color-field input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .color-field input[type="color"]::-webkit-color-swatch {
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px;
+  }
+
+  .color-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Logo upload zone */
+  .logo-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-zone:hover { border-color: var(--accent); background: rgba(200,241,53,0.03); }
+  .logo-zone.has-logo { border-style: solid; border-color: var(--accent); }
+
+  .logo-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .logo-thumb {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: white;
+    flex-shrink: 0;
+    display: none;
+    border: 1px solid var(--border);
+    padding: 2px;
+  }
+
+  .logo-thumb.visible { display: block; }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .logo-text-group { flex: 1; min-width: 0; }
+
+  .logo-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logo-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .logo-clear {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    z-index: 1;
+    transition: color 0.15s;
+  }
+
+  .logo-clear:hover { color: #f09595; }
+
+  .logo-size-row {
+    margin-top: 0.75rem;
+    display: none;
+  }
+
+  .logo-size-row.visible { display: block; }
+
+  .range-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .range-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    border: none;
+    outline: none;
+    accent-color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .ec-note {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-top: 0.4rem;
+    display: none;
+  }
+
+  .ec-note.visible { display: block; }
+
+  .btn-generate {
+    width: 100%;
+    background: var(--accent);
+    color: #0e0e0f;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    padding: 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  .btn-generate:hover { background: var(--accent-dim); }
+  .btn-generate:active { transform: scale(0.99); }
+
+  .output-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 520px;
+    margin-top: 1.5rem;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .output-card.visible { display: flex; }
+
+  .qr-frame {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  #qrcode canvas, #qrcode img { display: block; border-radius: 4px; }
+
+  /* The composited output canvas */
+  #qr-final { display: block; border-radius: 4px; }
+
+  .corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+
+  .corner.tl { top: -1px; left: -1px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .corner.tr { top: -1px; right: -1px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .corner.bl { bottom: -1px; left: -1px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .corner.br { bottom: -1px; right: -1px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+  .output-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-row { display: flex; gap: 0.75rem; width: 100%; }
+
+  .btn-dl {
+    flex: 1;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .btn-dl:hover {
+    border-color: var(--accent);
+    background: rgba(200, 241, 53, 0.06);
+    color: var(--accent);
+  }
+
+  .error-msg {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #f09595;
+    margin-top: 0.4rem;
+    display: none;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.25rem 0 1.5rem;
+  }
+
+  .section-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Utility Tool</p>
+  <h1>QR <span>Generator</span></h1>
+  <p class="tagline">// encode anything. instantly.</p>
+</header>
+
+<div class="card">
+  <div class="input-group">
+    <label>Content</label>
+    <textarea id="content" placeholder="URL, text, phone number, email…"></textarea>
+    <p class="error-msg" id="error">Please enter some content first.</p>
+  </div>
+
+  <div class="row">
+    <div class="input-group" style="margin-bottom:0">
+      <label>Error Correction</label>
+      <div class="select-wrapper">
+        <select id="ecLevel">
+          <option value="L">Low (7%)</option>
+          <option value="M" selected>Medium (15%)</option>
+          <option value="Q">Quartile (25%)</option>
+          <option value="H">High (30%)</option>
+        </select>
+      </div>
+      <p class="ec-note" id="ec-note">↑ Auto-set to High for logo</p>
+    </div>
+    <div class="input-group" style="margin-bottom:0">
+      <label>Size</label>
+      <div class="select-wrapper">
+        <select id="size">
+          <option value="128">128 px</option>
+          <option value="200" selected>200 px</option>
+          <option value="256">256 px</option>
+          <option value="512">512 px</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="color-row" style="margin-top:1rem">
+    <div>
+      <label>Foreground</label>
+      <div class="color-field" onclick="document.getElementById('fg').click()">
+        <input type="color" id="fg" value="#000000">
+        <span class="color-label" id="fg-hex">#000000</span>
+      </div>
+    </div>
+    <div>
+      <label>Background</label>
+      <div class="color-field" onclick="document.getElementById('bg').click()">
+        <input type="color" id="bg" value="#ffffff">
+        <span class="color-label" id="bg-hex">#ffffff</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <p class="section-label">Center Logo (optional)</p>
+
+  <div class="logo-zone" id="logo-zone">
+    <input type="file" id="logo-input" accept="image/*">
+    <div class="logo-icon" id="logo-icon">🖼️</div>
+    <img class="logo-thumb" id="logo-thumb" alt="logo preview">
+    <div class="logo-text-group">
+      <div class="logo-title" id="logo-title">Upload an image</div>
+      <div class="logo-sub" id="logo-sub">PNG, JPG, SVG — displayed in center</div>
+    </div>
+    <button class="logo-clear" id="logo-clear" style="display:none" title="Remove logo">✕</button>
+  </div>
+
+  <div class="logo-size-row" id="logo-size-row">
+    <div class="range-header">
+      <label style="margin:0">Logo size</label>
+      <span class="range-val" id="logo-size-val">25%</span>
+    </div>
+    <input type="range" id="logo-size" min="10" max="40" value="25" step="1">
+  </div>
+
+  <div style="margin-top:1.25rem">
+    <button class="btn-generate" onclick="generate()">Generate QR Code →</button>
+  </div>
+</div>
+
+<div class="output-card" id="output">
+  <div class="qr-frame" id="qr-frame">
+    <span class="corner tl"></span>
+    <span class="corner tr"></span>
+    <span class="corner bl"></span>
+    <span class="corner br"></span>
+    <div id="qrcode" style="display:none"></div>
+    <canvas id="qr-final"></canvas>
+  </div>
+  <p class="output-meta" id="meta"></p>
+  <div class="btn-row">
+    <button class="btn-dl" onclick="downloadPNG()">↓ Download PNG</button>
+    <button class="btn-dl" onclick="downloadSVG()">↓ Download SVG</button>
+  </div>
+</div>
+
+<script>
+let logoDataUrl = null;
+
+/* ── Color pickers ── */
+document.getElementById('fg').addEventListener('input', function() {
+  document.getElementById('fg-hex').textContent = this.value;
+});
+document.getElementById('bg').addEventListener('input', function() {
+  document.getElementById('bg-hex').textContent = this.value;
+});
+
+/* ── Logo size slider ── */
+document.getElementById('logo-size').addEventListener('input', function() {
+  document.getElementById('logo-size-val').textContent = this.value + '%';
+});
+
+/* ── Logo upload ── */
+document.getElementById('logo-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    logoDataUrl = ev.target.result;
+    const thumb = document.getElementById('logo-thumb');
+    thumb.src = logoDataUrl;
+    thumb.classList.add('visible');
+    document.getElementById('logo-icon').style.display = 'none';
+    document.getElementById('logo-title').textContent = file.name.length > 28 ? file.name.slice(0, 26) + '…' : file.name;
+    document.getElementById('logo-sub').textContent = 'Click to change';
+    document.getElementById('logo-zone').classList.add('has-logo');
+    document.getElementById('logo-clear').style.display = 'block';
+    document.getElementById('logo-size-row').classList.add('visible');
+    /* Auto-bump EC to High when logo present */
+    const ecSel = document.getElementById('ecLevel');
+    ecSel.value = 'H';
+    document.getElementById('ec-note').classList.add('visible');
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ── Clear logo ── */
+document.getElementById('logo-clear').addEventListener('click', function(e) {
+  e.stopPropagation();
+  logoDataUrl = null;
+  document.getElementById('logo-input').value = '';
+  const thumb = document.getElementById('logo-thumb');
+  thumb.src = '';
+  thumb.classList.remove('visible');
+  document.getElementById('logo-icon').style.display = 'flex';
+  document.getElementById('logo-title').textContent = 'Upload an image';
+  document.getElementById('logo-sub').textContent = 'PNG, JPG, SVG — displayed in center';
+  document.getElementById('logo-zone').classList.remove('has-logo');
+  document.getElementById('logo-clear').style.display = 'none';
+  document.getElementById('logo-size-row').classList.remove('visible');
+  document.getElementById('ec-note').classList.remove('visible');
+});
+
+/* ── Generate ── */
+function generate() {
+  const content = document.getElementById('content').value.trim();
+  const errorEl = document.getElementById('error');
+  if (!content) { errorEl.style.display = 'block'; return; }
+  errorEl.style.display = 'none';
+
+  const size    = parseInt(document.getElementById('size').value);
+  const ecLevel = document.getElementById('ecLevel').value;
+  const fg      = document.getElementById('fg').value;
+  const bg      = document.getElementById('bg').value;
+
+  const container = document.getElementById('qrcode');
+  container.innerHTML = '';
+
+  new QRCode(container, {
+    text: content,
+    width: size,
+    height: size,
+    colorDark: fg,
+    colorLight: bg,
+    correctLevel: QRCode.CorrectLevel[ecLevel]
+  });
+
+  /* QRCode renders async — wait for canvas/img */
+  setTimeout(() => compositeAndShow(size, content, ecLevel), 80);
+}
+
+function compositeAndShow(size, content, ecLevel) {
+  /* Grab QRCode's canvas (or img fallback) */
+  const qrCanvas  = document.querySelector('#qrcode canvas');
+  const qrImg     = document.querySelector('#qrcode img');
+  const finalCanvas = document.getElementById('qr-final');
+  const ctx = finalCanvas.getContext('2d');
+  finalCanvas.width  = size;
+  finalCanvas.height = size;
+
+  function drawQR(source) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(source, 0, 0, size, size);
+
+    if (logoDataUrl) {
+      const logoImg = new Image();
+      logoImg.onload = function() {
+        const pct      = parseInt(document.getElementById('logo-size').value) / 100;
+        const logoSize = Math.round(size * pct);
+        const x = Math.round((size - logoSize) / 2);
+        const y = Math.round((size - logoSize) / 2);
+        const pad = Math.round(logoSize * 0.08);
+
+        /* White backing circle/rect */
+        const r = Math.round(logoSize * 0.18);
+        ctx.fillStyle = '#ffffff';
+        roundRect(ctx, x - pad, y - pad, logoSize + pad*2, logoSize + pad*2, r + pad);
+        ctx.fill();
+
+        /* Draw logo */
+        ctx.drawImage(logoImg, x, y, logoSize, logoSize);
+      };
+      logoImg.src = logoDataUrl;
+    }
+  }
+
+  if (qrCanvas) {
+    drawQR(qrCanvas);
+  } else if (qrImg) {
+    if (qrImg.complete) { drawQR(qrImg); }
+    else { qrImg.onload = () => drawQR(qrImg); }
+  }
+
+  const output = document.getElementById('output');
+  output.classList.add('visible');
+
+  const displayContent = content.length > 48 ? content.slice(0, 48) + '…' : content;
+  document.getElementById('meta').textContent =
+    `${size}×${size}px · EC:${ecLevel}${logoDataUrl ? ' · logo on' : ''} · "${displayContent}"`;
+
+  output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/* ── Downloads ── */
+function downloadPNG() {
+  const canvas = document.getElementById('qr-final');
+  if (!canvas.width) return;
+  const link = document.createElement('a');
+  link.download = 'qrcode.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function downloadSVG() {
+  const canvas = document.getElementById('qr-final');
+  if (!canvas.width) return;
+  const size = canvas.width;
+  const dataUrl = canvas.toDataURL('image/png');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <image href="${dataUrl}" width="${size}" height="${size}"/>
+</svg>`;
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = 'qrcode.svg';
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('content').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate(); }
+});
+</script>
+</body>
+</html>
