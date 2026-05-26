@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signify — Digital Signature</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #1a1410;
+      --ink-light: #5c4f42;
+      --ink-faint: #e8e2da;
+      --paper: #f7f4ef;
+      --paper-warm: #ede8df;
+      --gold: #b8963e;
+      --gold-light: #d4b05a;
+      --stroke: 2px;
+      --radius: 4px;
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.6;
+    }
+
+    /* Decorative corner lines */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 1.5rem; left: 1.5rem; right: 1.5rem; bottom: 1.5rem;
+      border: 1px solid rgba(184, 150, 62, 0.15);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: fadeUp 0.8s ease both;
+    }
+
+    header .wordmark {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2.8rem;
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    header .wordmark em {
+      color: var(--gold);
+      font-style: italic;
+    }
+
+    header .tagline {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--ink-light);
+      margin-top: 0.5rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--ink-faint);
+      border-radius: var(--radius);
+      box-shadow: 0 2px 40px rgba(26,20,16,0.07), 0 1px 4px rgba(26,20,16,0.04);
+      width: 100%;
+      max-width: 680px;
+      padding: 2rem;
+      animation: fadeUp 0.8s 0.1s ease both;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      border: 1.5px solid var(--ink-faint);
+      border-radius: var(--radius);
+      background: var(--paper);
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    .canvas-wrapper::after {
+      content: 'Sign here';
+      position: absolute;
+      bottom: 1rem;
+      right: 1.2rem;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 0.85rem;
+      color: rgba(92,79,66,0.25);
+      pointer-events: none;
+      letter-spacing: 0.05em;
+    }
+
+    /* Baseline */
+    .canvas-wrapper::before {
+      content: '';
+      position: absolute;
+      bottom: 56px;
+      left: 5%;
+      right: 5%;
+      height: 1px;
+      background: rgba(184,150,62,0.18);
+      pointer-events: none;
+    }
+
+    #sig-canvas {
+      display: block;
+      width: 100%;
+      height: 220px;
+      touch-action: none;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex: 1 1 auto;
+    }
+
+    label {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-light);
+      white-space: nowrap;
+    }
+
+    /* Color swatches */
+    .swatches {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      position: relative;
+    }
+
+    .swatch.active {
+      border-color: var(--gold);
+      transform: scale(1.2);
+    }
+
+    .swatch:hover { transform: scale(1.15); }
+
+    /* Thickness slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 2px;
+      background: var(--ink-faint);
+      border-radius: 2px;
+      outline: none;
+      width: 90px;
+      cursor: pointer;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--ink);
+      border: 2px solid var(--paper);
+      box-shadow: 0 0 0 1px var(--ink);
+      transition: background 0.2s;
+    }
+
+    input[type=range]:focus::-webkit-slider-thumb { background: var(--gold); }
+
+    /* Buttons */
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.4rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 0.65rem 1.3rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: all 0.2s;
+      flex: 1 1 auto;
+      text-align: center;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: var(--ink-faint);
+      color: var(--ink-light);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--ink-light);
+      color: var(--ink);
+    }
+
+    .btn-primary {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    .btn-primary:hover {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #fff;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .btn-outline:hover {
+      background: var(--gold);
+      color: #fff;
+    }
+
+    /* Output preview */
+    .preview-section {
+      margin-top: 1.5rem;
+      display: none;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .preview-section.visible { display: block; }
+
+    .preview-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-light);
+      margin-bottom: 0.75rem;
+    }
+
+    .preview-img-wrap {
+      border: 1.5px dashed var(--ink-faint);
+      border-radius: var(--radius);
+      padding: 1rem;
+      text-align: center;
+      background: var(--paper-warm);
+    }
+
+    .preview-img-wrap img {
+      max-width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(2rem);
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 0.7rem 1.4rem;
+      border-radius: 100px;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      z-index: 200;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Empty hint */
+    .hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.1rem;
+      color: rgba(92,79,66,0.22);
+      pointer-events: none;
+      letter-spacing: 0.05em;
+      transition: opacity 0.3s;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 500px) {
+      .controls { flex-direction: column; align-items: flex-start; }
+      .btn { font-size: 0.6rem; padding: 0.6rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark">Sign<em>ify</em></div>
+  <div class="tagline">Digital Signature Studio</div>
+</header>
+
+<div class="card">
+  <div class="canvas-wrapper" id="canvas-wrapper">
+    <div class="hint" id="hint">Draw your signature</div>
+    <canvas id="sig-canvas"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Ink</label>
+      <div class="swatches" id="swatches">
+        <button class="swatch active" data-color="#1a1410" style="background:#1a1410;" title="Ink Black"></button>
+        <button class="swatch" data-color="#1a2e4a" style="background:#1a2e4a;" title="Navy"></button>
+        <button class="swatch" data-color="#b8963e" style="background:#b8963e;" title="Gold"></button>
+        <button class="swatch" data-color="#7a1c1c" style="background:#7a1c1c;" title="Crimson"></button>
+        <button class="swatch" data-color="#2d5a3d" style="background:#2d5a3d;" title="Forest"></button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Weight</label>
+      <input type="range" id="thickness" min="1" max="10" value="2.5" step="0.5">
+    </div>
+
+    <div class="control-group">
+      <label>Smooth</label>
+      <input type="range" id="smoothing" min="0" max="0.95" value="0.5" step="0.05">
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-ghost" id="btn-clear">Clear</button>
+    <button class="btn btn-ghost" id="btn-undo">Undo</button>
+    <button class="btn btn-outline" id="btn-copy">Copy PNG</button>
+    <button class="btn btn-primary" id="btn-download">Download</button>
+  </div>
+
+  <div class="preview-section" id="preview-section">
+    <div class="preview-label">Preview</div>
+    <div class="preview-img-wrap">
+      <img id="preview-img" src="" alt="Signature preview">
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const canvas = document.getElementById('sig-canvas');
+  const ctx = canvas.getContext('2d');
+  const wrapper = document.getElementById('canvas-wrapper');
+  const hint = document.getElementById('hint');
+  const thicknessInput = document.getElementById('thickness');
+  const smoothingInput = document.getElementById('smoothing');
+  const previewSection = document.getElementById('preview-section');
+  const previewImg = document.getElementById('preview-img');
+  const toast = document.getElementById('toast');
+
+  let isDrawing = false;
+  let lastX = 0, lastY = 0;
+  let currentColor = '#1a1410';
+  let history = [];
+  let currentStroke = [];
+  let pressure = 1;
+
+  // Init canvas size
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+  }
+
+  resizeCanvas();
+  window.addEventListener('resize', () => { resizeCanvas(); redrawAll(); });
+
+  // Pointer events (mouse + touch + stylus)
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  }
+
+  function startDraw(e) {
+    e.preventDefault();
+    isDrawing = true;
+    const pos = getPos(e);
+    lastX = pos.x; lastY = pos.y;
+    pressure = e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5;
+    currentStroke = [{ x: lastX, y: lastY }];
+    // Snapshot before stroke
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, getThickness() / 2, 0, Math.PI * 2);
+    ctx.fillStyle = currentColor;
+    ctx.fill();
+    hint.style.opacity = '0';
+  }
+
+  function draw(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    const smoothing = parseFloat(smoothingInput.value);
+    pressure = e.pressure !== undefined && e.pressure > 0 ? e.pressure : 0.5;
+
+    const cpX = lastX + (pos.x - lastX) * (1 - smoothing);
+    const cpY = lastY + (pos.y - lastY) * (1 - smoothing);
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.quadraticCurveTo(cpX, cpY, pos.x, pos.y);
+    ctx.lineWidth = getThickness();
+    ctx.strokeStyle = currentColor;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    currentStroke.push({ x: pos.x, y: pos.y });
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+
+  function endDraw(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    if (currentStroke.length > 0) {
+      history.push({
+        stroke: [...currentStroke],
+        color: currentColor,
+        thickness: getThickness()
+      });
+      currentStroke = [];
+    }
+    updatePreview();
+  }
+
+  function getThickness() {
+    return parseFloat(thicknessInput.value);
+  }
+
+  canvas.addEventListener('pointerdown', startDraw);
+  canvas.addEventListener('pointermove', draw);
+  canvas.addEventListener('pointerup', endDraw);
+  canvas.addEventListener('pointerleave', endDraw);
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', draw, { passive: false });
+  canvas.addEventListener('touchend', endDraw);
+
+  // Color swatches
+  document.getElementById('swatches').addEventListener('click', e => {
+    const swatch = e.target.closest('.swatch');
+    if (!swatch) return;
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    swatch.classList.add('active');
+    currentColor = swatch.dataset.color;
+  });
+
+  // Redraw all history
+  function redrawAll() {
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    history.forEach(entry => {
+      if (entry.stroke.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(entry.stroke[0].x, entry.stroke[0].y);
+      for (let i = 1; i < entry.stroke.length; i++) {
+        const s = entry.stroke[i - 1];
+        const e2 = entry.stroke[i];
+        const cx = (s.x + e2.x) / 2;
+        const cy = (s.y + e2.y) / 2;
+        ctx.quadraticCurveTo(s.x, s.y, cx, cy);
+      }
+      ctx.lineWidth = entry.thickness;
+      ctx.strokeStyle = entry.color;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    });
+  }
+
+  // Clear
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    history = [];
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    hint.style.opacity = '1';
+    previewSection.classList.remove('visible');
+  });
+
+  // Undo
+  document.getElementById('btn-undo').addEventListener('click', () => {
+    if (history.length === 0) return;
+    history.pop();
+    redrawAll();
+    if (history.length === 0) {
+      hint.style.opacity = '1';
+      previewSection.classList.remove('visible');
+    } else {
+      updatePreview();
+    }
+  });
+
+  // Get trimmed canvas as PNG dataURL
+  function getTrimmedDataURL() {
+    // Find bounding box of content
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.width, h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const alpha = data[(y * w + x) * 4 + 3];
+        if (alpha > 10) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX) return canvas.toDataURL('image/png');
+    const pad = 24 * dpr;
+    minX = Math.max(0, minX - pad);
+    minY = Math.max(0, minY - pad);
+    maxX = Math.min(w, maxX + pad);
+    maxY = Math.min(h, maxY + pad);
+    const cropW = maxX - minX, cropH = maxY - minY;
+    const tmp = document.createElement('canvas');
+    tmp.width = cropW; tmp.height = cropH;
+    const tmpCtx = tmp.getContext('2d');
+    tmpCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+    return tmp.toDataURL('image/png');
+  }
+
+  // Update preview
+  function updatePreview() {
+    if (history.length === 0) return;
+    previewSection.classList.add('visible');
+    previewImg.src = getTrimmedDataURL();
+  }
+
+  // Download
+  document.getElementById('btn-download').addEventListener('click', () => {
+    if (history.length === 0) { showToast('Draw your signature first'); return; }
+    const link = document.createElement('a');
+    link.download = 'signature.png';
+    link.href = getTrimmedDataURL();
+    link.click();
+    showToast('Signature downloaded');
+  });
+
+  // Copy PNG
+  document.getElementById('btn-copy').addEventListener('click', async () => {
+    if (history.length === 0) { showToast('Draw your signature first'); return; }
+    try {
+      const dataURL = getTrimmedDataURL();
+      const blob = await (await fetch(dataURL)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('Copied to clipboard');
+    } catch {
+      showToast('Copy not supported in this browser');
+    }
+  });
+
+  // Toast
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+</script>
+</body>
+</html>
